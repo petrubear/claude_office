@@ -24,9 +24,10 @@ COFFEE_SPOT = {"x": 9, "y": 13}
 
 
 class Scene:
-    def __init__(self):
+    def __init__(self, source_name="CLAUDE CODE"):
         self.width = 78
         self.height = 22
+        self.source_name = source_name
         self.whiteboard_tools = []  # (tool_name, expire_time)
 
     def update_whiteboard(self, tool_name):
@@ -72,7 +73,8 @@ class Scene:
             self._safe_addstr(win, 2, self.width + 1, "\u2563", COLOR_WALL)
 
     def draw_title(self, win, max_w, clock_str):
-        self._safe_addstr(win, 1, 3, "CLAUDE CODE OFFICE", COLOR_TITLE,
+        title = f"{self.source_name} OFFICE"
+        self._safe_addstr(win, 1, 3, title, COLOR_TITLE,
                           curses.A_BOLD)
         clock_x = self.width - len(clock_str) - 1
         if clock_x > 0:

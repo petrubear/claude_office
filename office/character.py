@@ -112,6 +112,7 @@ class Character:
         self.desk_timer = 0
         self.wait_timer = 0
         self._thinking_arrived = False
+        self.idle_timer = 0  # tracks how long a subagent has been idle
         self.is_alive = True
 
     def _is_at_desk(self):
@@ -132,6 +133,7 @@ class Character:
     def on_tool_start(self, tool_name):
         self.current_tool = tool_name
         self.desk_timer = 0
+        self.idle_timer = 0
 
         # Clear waiting state if a new tool comes in
         if self.state == AgentState.WAITING:
@@ -161,10 +163,16 @@ class Character:
         self._walk_to_desk()
 
     def on_tool_end(self):
+        prev_tool = self.current_tool
         self.current_tool = None
         self.speech_bubble = None
         if self.state == AgentState.WORKING:
             self._go_get_coffee()
+        elif self.state == AgentState.WALKING:
+            # Tool ended before agent reached desk (fast tools like WebSearch).
+            # Let the walk finish -- arrival will see no current_tool and sit
+            # briefly before returning to lounge.
+            pass
         elif self.state == AgentState.WAITING:
             # Permission was granted, go back to working briefly
             self.state = AgentState.WORKING
@@ -228,12 +236,19 @@ class Character:
 
         elif self.state == AgentState.IDLE:
             self.wander_timer -= dt
-            if self.wander_timer <= 0:
+            self.idle_timer += dt
+            if self.agent_type != "main" and self.idle_timer > 20.0:
+                # Subagent has been idle too long -- go home
+                self.on_exit()
+            elif self.wander_timer <= 0:
                 self._start_wander()
 
         elif self.state == AgentState.WANDERING:
             self._move_toward_target(dt)
-            if self._at_target():
+            self.idle_timer += dt
+            if self.agent_type != "main" and self.idle_timer > 20.0:
+                self.on_exit()
+            elif self._at_target():
                 self.state = AgentState.IDLE
                 self.wander_timer = random.uniform(2.0, 6.0)
 
@@ -263,7 +278,12 @@ class Character:
         elif self.state == AgentState.WORKING:
             self.sprite_timer += dt
             self.desk_timer += dt
-            if self.desk_timer > 10.0:
+            if (self.desk_timer > 5.0
+                    and self.current_tool in PERMISSION_TOOLS):
+                # No new event for 5s on a permission-gated tool --
+                # likely waiting for user approval.
+                self.on_waiting(self.current_tool)
+            elif self.desk_timer > 10.0:
                 self.current_tool = None
                 self.speech_bubble = None
                 self._return_to_lounge()

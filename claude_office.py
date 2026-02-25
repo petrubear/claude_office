@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Claude Office -- Terminal ASCII agent visualizer for Claude Code."""
+"""Claude Office -- Terminal ASCII agent visualizer for AI coding CLIs."""
 import argparse
 import curses
 import sys
@@ -7,7 +7,7 @@ import sys
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Watch Claude Code agents in a terminal office"
+        description="Watch AI coding agents in a terminal office"
     )
     parser.add_argument(
         "--project", "-p", type=str, default=None,
@@ -21,6 +21,22 @@ def main():
         "--session", "-s", type=str, default=None,
         help="Specific session UUID to watch"
     )
+
+    # Source selectors (mutually exclusive with --demo)
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
+        "--codex", action="store_true",
+        help="Watch OpenAI Codex CLI sessions"
+    )
+    source.add_argument(
+        "--kiro", action="store_true",
+        help="Watch Kiro CLI sessions"
+    )
+    source.add_argument(
+        "--opencode", action="store_true",
+        help="Watch OpenCode sessions"
+    )
+
     args = parser.parse_args()
 
     try:
@@ -31,12 +47,25 @@ def main():
 
 def run(stdscr, args):
     from office.app import App
-    app = App(
-        stdscr,
-        project_path=args.project,
-        demo=args.demo,
-        session_id=args.session,
-    )
+
+    watcher = None
+    if args.demo:
+        from office.watchers.demo import DemoWatcher
+        watcher = DemoWatcher()
+    elif args.codex:
+        from office.watchers.codex import CodexWatcher
+        watcher = CodexWatcher()
+    elif args.kiro:
+        from office.watchers.kiro import KiroWatcher
+        watcher = KiroWatcher()
+    elif args.opencode:
+        from office.watchers.opencode import OpenCodeWatcher
+        watcher = OpenCodeWatcher()
+    else:
+        from office.watchers.claude import ClaudeWatcher
+        watcher = ClaudeWatcher(args.project, args.session)
+
+    app = App(stdscr, watcher=watcher)
     app.run()
 
 

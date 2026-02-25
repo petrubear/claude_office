@@ -13,21 +13,27 @@ FRAME_MS = 1000 // FPS
 
 
 class App:
-    def __init__(self, stdscr, project_path=None, demo=False, session_id=None):
+    def __init__(self, stdscr, watcher=None, project_path=None, demo=False,
+                 session_id=None):
         self.stdscr = stdscr
-        self.scene = Scene()
-        self.renderer = Renderer(stdscr)
         self.characters = {}
         self.desk_assignments = {}  # agent_id -> desk
         self.next_desk_idx = 0
         self.sub_counter = 0
 
-        if demo:
-            from demo.demo_mode import DemoMode
-            self.watcher = DemoMode()
+        # Build watcher from explicit param or legacy args
+        if watcher is not None:
+            self.watcher = watcher
+        elif demo:
+            from office.watchers.demo import DemoWatcher
+            self.watcher = DemoWatcher()
         else:
-            from office.transcript_watcher import TranscriptWatcher
-            self.watcher = TranscriptWatcher(project_path, session_id)
+            from office.watchers.claude import ClaudeWatcher
+            self.watcher = ClaudeWatcher(project_path, session_id)
+
+        source_name = getattr(self.watcher, "SOURCE_NAME", "CLAUDE CODE")
+        self.scene = Scene(source_name=source_name)
+        self.renderer = Renderer(stdscr)
 
         # Create main agent
         desk = self._assign_desk("main")
@@ -140,6 +146,11 @@ class App:
             short_type = sub_type.lower().split("-")[0][:7]
             name = f"{short_type}-{self.sub_counter}"
             self._spawn_agent(sub_id, name, sub_type)
+            # If spawn includes a tool, immediately start working
+            tool = event.get("tool")
+            if tool and sub_id in self.characters:
+                self.scene.update_whiteboard(tool)
+                self.characters[sub_id].on_tool_start(tool)
 
     def _spawn_agent(self, agent_id, name, agent_type):
         if agent_id in self.characters:
