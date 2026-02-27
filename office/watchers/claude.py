@@ -160,11 +160,12 @@ class ClaudeWatcher(BaseWatcher):
                         "tool": tool_name,
                     }
 
-        elif rec_type == "result":
-            return {
-                "event": "tool_end",
-                "agent_id": agent_id,
-            }
+        elif rec_type == "user":
+            content = record.get("message", {}).get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_result":
+                        return {"event": "tool_end", "agent_id": agent_id}
 
         elif (rec_type == "system"
               and record.get("subtype") == "turn_duration"):

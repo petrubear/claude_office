@@ -30,8 +30,8 @@ class KiroWatcher(BaseWatcher):
     to detect new entries, and convert them to normalised events.
 
     Subagent tool calls are opaque (not visible in history), so we emit
-    synthetic tool_start on spawn and tool_end + turn_end when results
-    arrive.
+    spawn_subagent events and let App assign IDs.  Subagent characters
+    exit naturally via the idle timeout in Character.
     """
 
     SOURCE_NAME = "KIRO"
@@ -50,9 +50,6 @@ class KiroWatcher(BaseWatcher):
         self._conv_id = None
         self._history_len = 0
         self._last_updated = 0
-        # Subagent tracking: tool_use_id -> count of spawned subagents
-        self._pending_subagents = {}  # tool_use_id -> spawn_count
-        self._sub_counter = 0  # mirrors App.sub_counter
 
     def _get_connection(self):
         import sqlite3
@@ -100,7 +97,6 @@ class KiroWatcher(BaseWatcher):
                 self._history_len = len(history)
                 self._last_updated = updated_at
                 self._initialized = True
-                self._pending_subagents.clear()
                 conn.close()
                 return []
 
@@ -136,21 +132,10 @@ class KiroWatcher(BaseWatcher):
         # --- Handle ToolUseResults arriving (user side of entry) ---
         # This means results from the previous entry's tool calls arrived.
         if isinstance(user_content, dict) and "ToolUseResults" in user_content:
-            results = (user_content["ToolUseResults"]
-                       .get("tool_use_results", []))
-            for result in results:
-                tool_use_id = result.get("tool_use_id", "")
-                # Check if this result corresponds to pending subagents
-                sub_ids = self._pending_subagents.pop(tool_use_id, [])
-                for sub_id in sub_ids:
-                    events.append({
-                        "event": "tool_end",
-                        "agent_id": sub_id,
-                    })
-                    events.append({
-                        "event": "turn_end",
-                        "agent_id": sub_id,
-                    })
+            # Tool results arrived — emit tool_end for the main agent.
+            # Subagent characters exit naturally via idle timeout in
+            # Character (idle_timer > 20s), so we don't emit events for them.
+            events.append({"event": "tool_end", "agent_id": "main"})
 
         # --- Handle assistant response ---
         if "ToolUse" in assistant:
@@ -158,27 +143,22 @@ class KiroWatcher(BaseWatcher):
             tool_uses = tu.get("tool_uses", [])
             for tool in tool_uses:
                 name = tool.get("name", "unknown")
-                tool_id = tool.get("id", "")
                 args = tool.get("args", {})
                 command = args.get("command", "")
 
                 if name == "use_subagent" and command == "InvokeSubagents":
                     subagents = (args.get("content", {})
                                  .get("subagents", []))
-                    # Track which sub-N IDs will be created by the App
-                    sub_ids = []
+                    # Emit spawn_subagent for each sub; App assigns IDs.
+                    # Subagent characters exit via idle timeout in Character.
                     for sub in subagents:
-                        self._sub_counter += 1
-                        sub_ids.append(f"sub-{self._sub_counter}")
                         events.append({
                             "event": "spawn_subagent",
                             "agent_id": "main",
                             "subagent_type": "general-purpose",
                             "description": sub.get("query", "subtask")[:40],
-                            "tool": "Read",
+                            "tool": "Task",
                         })
-                    if tool_id:
-                        self._pending_subagents[tool_id] = sub_ids
 
                 elif name == "use_subagent":
                     events.append({
@@ -195,7 +175,6 @@ class KiroWatcher(BaseWatcher):
                     })
 
             # Emit tool_end for the main agent's tool calls
-            # (subagent tool_ends are deferred to ToolUseResults)
             events.append({"event": "tool_end", "agent_id": "main"})
 
         elif "Response" in assistant:

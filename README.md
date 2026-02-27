@@ -5,29 +5,30 @@ A terminal-based ASCII animation that visualizes Claude Code agents as character
 Inspired by [pixel-agents](https://github.com/pablodelucca/pixel-agents).
 
 ```
-╔══════════════════════════════════════════════════════════════════════════════╗
-║  CLAUDE CODE OFFICE                                        14:32:05       ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║         ┌───────┐        ┌───────┐        ┌───────┐        ┌───────┐     ║
-║         │ ▓▓▓   │        │ ▓▓▓   │        │ ▓▓▓   │        │ ▓▓▓   │     ║
-║         └───┬───┘        └───┬───┘        └───┬───┘        └───┬───┘     ║
-║          ┌──────┐            ◇               ◇               ◇           ║
-║          │[Read]│                                                         ║
-║          └──┬───┘                                                         ║
-║              o                                                            ║
-║             \|/            ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─        ║
-║             _|_                                                           ║
-║             main           o                                              ║
-║                           /|\                                             ║
-║  ┌───┐                   / |          ┌──────────────┐                    ║
-║  │ ♨ │  LOUNGE          sub-1         │ WHITEBOARD   │                    ║
-║  └───┘                                │ > Read       │                    ║
-║                                       │ > Edit       │                    ║
-║         ┌───────┐  ┌───────┐          │ > Bash       │                    ║
-║         │sofa   │  │sofa   │          └──────────────┘                    ║
-║         └───────┘  └───────┘                                              ║
-║  agents: 1 main + 1 sub  |  active: 1  |  tools: Read                    ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║  CLAUDE CODE OFFICE                                              14:32:05      ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║    ┌─────────────┬─────────────┬─────────────┬─────────────┐                   ║
+║    │    ▓▓▓▓▓    │    ▓▓▓▓▓    │    ▓▓▓▓▓    │    ▓▓▓▓▓    │                   ║
+║    │   ═══════   │   ═══════   │   ═══════   │   ═══════   │                   ║
+║    │  ┌──────┐◇  │      ◇     │      ◇      │      ◇      │                   ║
+║    └──│[Read]│───┴─────────────┴─────────────┴─────────────┘                   ║
+║       └──┬───┘                                                                 ║
+║  ·   ·    o  ·   ·   ·   ·   ·   ·   ·   ·   ·   ·   ·   ·   ·   ·   ·      ║
+║          \|/                                                                   ║
+║  ┌───────────┐  _|_                                       ┌────────────────┐   ║
+║  │  ♨  CAFÉ  │  main    o                                 │  WHITEBOARD    │   ║
+║  │  ╭─────╮  │         /|\          L O U N G E           │  > Read        │   ║
+║  │  │     │  │        / |                                 │  > Edit        │   ║
+║  │  ╰─────╯  │       sub-1                                │  > Bash        │   ║
+║  │           │                                            │                │   ║
+║  └───────────┘  ╭━━━━━━╮  ◻  ╭━━━━━━╮                    └────────────────┘   ║
+║                 ┃ ░░░░ ┃     ┃ ░░░░ ┃                                          ║
+║                 ╰━━━━━━╯     ╰━━━━━━╯                                          ║
+║                                                                                ║
+║                                                                                ║
+║  agents: 1 main + 1 sub  |  active: 1  |  tools: Read                         ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
 ```
 
 ## Requirements
@@ -49,6 +50,11 @@ python3 claude_office.py --project /path/to/your/project
 
 # Watch a specific session by UUID
 python3 claude_office.py --session abc123
+
+# Watch other AI coding CLIs
+python3 claude_office.py --codex      # OpenAI Codex CLI
+python3 claude_office.py --kiro       # Kiro CLI
+python3 claude_office.py --opencode   # OpenCode
 ```
 
 Press `q` to quit.
@@ -74,8 +80,11 @@ Characters will react in real time as Claude reads files, edits code, runs comma
   - Cyan: Explore / Bash agents
   - Green: general-purpose / code agents
   - Yellow: Plan / test agents
+- **Cubicles** -- 4 workstations with monitors, desk surfaces, and chairs
 - **Speech bubbles** show the active tool: `[Read]`, `[Edit]`, `[$ Bash]`, `[Grep]`, `[Glob]`, `[Task]`, etc.
-- **Whiteboard** tracks recently used tools
+- **Whiteboard** (right wall) -- tracks recently used tools
+- **Café** (left side) -- coffee break room with counter where agents go to think
+- **Sofas** (center) -- rounded lounging area with cushions and a coffee table
 - **Status bar** shows agent count, active workers, and current tools
 
 ## How it works
@@ -98,9 +107,13 @@ office/
   character.py                # ASCII sprites, state machine, movement
   renderer.py                 # Draws scene to terminal
   speech_bubble.py            # Tool name bubbles
-  transcript_watcher.py       # Claude Code JSONL file watcher
   agent_state.py              # State enum
   colors.py                   # ANSI color pairs
-demo/
-  demo_mode.py                # Simulated events for standalone demo
+  watchers/
+    __init__.py               # BaseWatcher interface
+    claude.py                 # Claude Code JSONL file watcher
+    codex.py                  # OpenAI Codex CLI watcher
+    kiro.py                   # Kiro CLI watcher
+    opencode.py               # OpenCode watcher
+    demo.py                   # Simulated events for demo mode
 ```

@@ -6,21 +6,23 @@ from office.colors import (
 )
 
 # Desk definitions: each desk has a position and a chair position below it
+# Cubicles at x=5, x=21, x=37, x=53 (15 wide each)
+# Chair centered in each cubicle
 DESKS = [
-    {"id": "desk_0", "x": 10, "y": 3, "chair_x": 12, "chair_y": 6},
-    {"id": "desk_1", "x": 27, "y": 3, "chair_x": 29, "chair_y": 6},
-    {"id": "desk_2", "x": 44, "y": 3, "chair_x": 46, "chair_y": 6},
-    {"id": "desk_3", "x": 61, "y": 3, "chair_x": 63, "chair_y": 6},
+    {"id": "desk_0", "x": 5,  "y": 3, "chair_x": 12, "chair_y": 6},
+    {"id": "desk_1", "x": 21, "y": 3, "chair_x": 28, "chair_y": 6},
+    {"id": "desk_2", "x": 37, "y": 3, "chair_x": 44, "chair_y": 6},
+    {"id": "desk_3", "x": 53, "y": 3, "chair_x": 60, "chair_y": 6},
 ]
 
 # Lounge spawn area for idle characters (avoids furniture)
-LOUNGE_AREA = {"x_min": 10, "x_max": 50, "y_min": 12, "y_max": 15}
+LOUNGE_AREA = {"x_min": 16, "x_max": 52, "y_min": 11, "y_max": 16}
 
 # Walkway Y coordinate (characters cross this to go between desk and lounge)
-WALKWAY_Y = 10
+WALKWAY_Y = 9
 
 # Coffee spot -- where characters go to think
-COFFEE_SPOT = {"x": 9, "y": 13}
+COFFEE_SPOT = {"x": 7, "y": 14}
 
 
 class Scene:
@@ -81,59 +83,90 @@ class Scene:
             self._safe_addstr(win, 1, clock_x, clock_str, COLOR_WALL)
 
     def draw_furniture(self, win, max_h, max_w):
-        # Draw desks
-        for desk in DESKS:
-            x, y = desk["x"], desk["y"]
-            self._safe_addstr(win, y, x, "\u250c\u2500\u2500\u2500\u2500\u2500\u2510", COLOR_DESK)
-            self._safe_addstr(win, y + 1, x, "\u2502 \u2593\u2593\u2593 \u2502", COLOR_DESK)
-            self._safe_addstr(win, y + 2, x, "\u2514\u2500\u2500\u252c\u2500\u2500\u2518", COLOR_DESK)
-            # Chair indicator
-            cx = desk["chair_x"]
-            cy = desk["chair_y"]
-            self._safe_addstr(win, cy, cx, "\u25c7", COLOR_DESK)
+        # === CUBICLES (y=3 to y=7) ===
+        cubicle_xs = [5, 21, 37, 53]
+        cw = 15  # cubicle width
 
-        # Walkway separator
-        sep_y = WALKWAY_Y
-        sep_str = " ".join(["\u2500"] * ((self.width - 4) // 2))
-        self._safe_addstr(win, sep_y, 2, sep_str, COLOR_SEPARATOR)
+        # Top wall: ┌─────┬─────┬─────┬─────┐
+        top_row = "┌" + "─" * (cw - 2) + "┐"
+        for i, cx in enumerate(cubicle_xs):
+            if i == 0:
+                self._safe_addstr(win, 3, cx, "┌" + "─" * (cw - 2), COLOR_DESK)
+            else:
+                self._safe_addstr(win, 3, cx, "┬" + "─" * (cw - 2), COLOR_DESK)
+        self._safe_addstr(win, 3, cubicle_xs[-1] + cw - 1, "┐", COLOR_DESK)
 
-        # Coffee machine
-        self._safe_addstr(win, 12, 3, "\u250c\u2500\u2500\u2500\u2510", COLOR_COFFEE)
-        self._safe_addstr(win, 13, 3, "\u2502 \u2668 \u2502", COLOR_COFFEE)
-        self._safe_addstr(win, 14, 3, "\u2514\u2500\u2500\u2500\u2518", COLOR_COFFEE)
-        self._safe_addstr(win, 15, 3, "coffee", COLOR_COFFEE)
+        # Monitors row (y=4): │ ▓▓▓ │
+        for cx in cubicle_xs:
+            self._safe_addstr(win, 4, cx, "│", COLOR_DESK)
+            self._safe_addstr(win, 4, cx + 5, "▓▓▓▓▓", COLOR_DESK)
+            self._safe_addstr(win, 4, cx + cw - 1, "│", COLOR_DESK)
 
-        # Sofas
-        self._safe_addstr(win, 16, 12, "\u250c\u2500\u2500\u2500\u2500\u2500\u2510", COLOR_FURNITURE)
-        self._safe_addstr(win, 17, 12, "\u2502sofa \u2502", COLOR_FURNITURE)
-        self._safe_addstr(win, 18, 12, "\u2514\u2500\u2500\u2500\u2500\u2500\u2518", COLOR_FURNITURE)
+        # Desk surface row (y=5): │ ═══ │
+        for cx in cubicle_xs:
+            self._safe_addstr(win, 5, cx, "│", COLOR_DESK)
+            self._safe_addstr(win, 5, cx + 4, "═══════", COLOR_DESK)
+            self._safe_addstr(win, 5, cx + cw - 1, "│", COLOR_DESK)
 
-        self._safe_addstr(win, 16, 21, "\u250c\u2500\u2500\u2500\u2500\u2500\u2510", COLOR_FURNITURE)
-        self._safe_addstr(win, 17, 21, "\u2502sofa \u2502", COLOR_FURNITURE)
-        self._safe_addstr(win, 18, 21, "\u2514\u2500\u2500\u2500\u2500\u2500\u2518", COLOR_FURNITURE)
+        # Chair row (y=6): │  ◇  │
+        for i, cx in enumerate(cubicle_xs):
+            self._safe_addstr(win, 6, cx, "│", COLOR_DESK)
+            self._safe_addstr(win, 6, cx + cw - 1, "│", COLOR_DESK)
+            # Chair centered
+            self._safe_addstr(win, 6, DESKS[i]["chair_x"], "◇", COLOR_DESK)
 
-        # Plant (tucked next to whiteboard, out of walk area)
-        wb_left = self.width - 21
-        self._safe_addstr(win, 18, wb_left, "(_)", COLOR_PLANT)
-        self._safe_addstr(win, 17, wb_left - 1, "/|\\", COLOR_PLANT)
-        self._safe_addstr(win, 16, wb_left, "\\|", COLOR_PLANT)
+        # Bottom wall (y=7): └─────┴─────┴─────┴─────┘
+        for i, cx in enumerate(cubicle_xs):
+            if i == 0:
+                self._safe_addstr(win, 7, cx, "└" + "─" * (cw - 2), COLOR_DESK)
+            else:
+                self._safe_addstr(win, 7, cx, "┴" + "─" * (cw - 2), COLOR_DESK)
+        self._safe_addstr(win, 7, cubicle_xs[-1] + cw - 1, "┘", COLOR_DESK)
 
-        # Whiteboard
-        wb_x = self.width - 18
-        self._safe_addstr(win, 12, wb_x, "\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510", COLOR_WHITEBOARD)
-        self._safe_addstr(win, 13, wb_x, "\u2502 WHITEBOARD   \u2502", COLOR_WHITEBOARD)
+        # === WALKWAY (y=9) ===
+        dots = "·   " * 19
+        self._safe_addstr(win, WALKWAY_Y, 2, dots[:self.width - 4], COLOR_SEPARATOR)
+
+        # === COFFEE / CAFÉ (x=2, y=11 to y=17) ===
+        self._safe_addstr(win, 11, 2, "┌───────────┐", COLOR_COFFEE)
+        self._safe_addstr(win, 12, 2, "│  ♨  CAFÉ  │", COLOR_COFFEE)
+        self._safe_addstr(win, 13, 2, "│  ╭─────╮  │", COLOR_COFFEE)
+        self._safe_addstr(win, 14, 2, "│  │     │  │", COLOR_COFFEE)
+        self._safe_addstr(win, 15, 2, "│  ╰─────╯  │", COLOR_COFFEE)
+        self._safe_addstr(win, 16, 2, "│           │", COLOR_COFFEE)
+        self._safe_addstr(win, 17, 2, "└───────────┘", COLOR_COFFEE)
+
+        # === SOFAS (center, y=16 to y=18) ===
+        # Sofa 1
+        self._safe_addstr(win, 16, 18, "╭━━━━━━╮", COLOR_FURNITURE)
+        self._safe_addstr(win, 17, 18, "┃ ░░░░ ┃", COLOR_FURNITURE)
+        self._safe_addstr(win, 18, 18, "╰━━━━━━╯", COLOR_FURNITURE)
+
+        # Coffee table between sofas
+        self._safe_addstr(win, 17, 27, "◻", COLOR_FURNITURE)
+
+        # Sofa 2
+        self._safe_addstr(win, 16, 32, "╭━━━━━━╮", COLOR_FURNITURE)
+        self._safe_addstr(win, 17, 32, "┃ ░░░░ ┃", COLOR_FURNITURE)
+        self._safe_addstr(win, 18, 32, "╰━━━━━━╯", COLOR_FURNITURE)
+
+        # === WHITEBOARD (right side, y=11 to y=18, flush with right wall) ===
+        wb_x = self.width - 17  # 18-char wide strings end at x=78, flush with wall
+        self._safe_addstr(win, 11, wb_x, "┌────────────────┐", COLOR_WHITEBOARD)
+        self._safe_addstr(win, 12, wb_x, "│  WHITEBOARD    │", COLOR_WHITEBOARD)
         # Show recent tools on whiteboard
         for i in range(4):
             if i < len(self.whiteboard_tools):
                 name = self.whiteboard_tools[i][0]
-                tool_str = f"\u2502 > {name:<9}\u2502"
+                tool_str = f"│  > {name:<11} │"
             else:
-                tool_str = "\u2502             \u2502"
-            self._safe_addstr(win, 14 + i, wb_x, tool_str, COLOR_WHITEBOARD)
-        self._safe_addstr(win, 18, wb_x, "\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518", COLOR_WHITEBOARD)
+                tool_str = "│                │"
+            self._safe_addstr(win, 13 + i, wb_x, tool_str, COLOR_WHITEBOARD)
+        self._safe_addstr(win, 17, wb_x, "│                │", COLOR_WHITEBOARD)
+        self._safe_addstr(win, 18, wb_x, "└────────────────┘", COLOR_WHITEBOARD)
 
-        # Lounge label
-        self._safe_addstr(win, 13, 10, "LOUNGE", COLOR_FURNITURE,
+        # === LOUNGE label ===
+        self._safe_addstr(win, 13, 30, "L O U N G E", COLOR_FURNITURE,
                           curses.A_DIM)
 
     def draw_status_bar(self, win, max_h, max_w, agent_count, sub_count,

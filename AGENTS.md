@@ -12,9 +12,12 @@ claude_office.py          Entry point (argparse, curses.wrapper)
       v
   office/app.py           Main loop: poll events -> tick characters -> render
       |
-      +-- office/transcript_watcher.py   Reads ~/.claude/projects/ JSONL files
-      |       or
-      +-- demo/demo_mode.py              Generates fake events for demo mode
+      +-- office/watchers/            Pluggable event sources
+      |       claude.py               Reads ~/.claude/projects/ JSONL files
+      |       codex.py                OpenAI Codex CLI watcher
+      |       kiro.py                 Kiro CLI watcher
+      |       opencode.py             OpenCode watcher
+      |       demo.py                 Generates fake events for demo mode
       |
       +-- office/scene.py                Office layout, furniture, whiteboard
       +-- office/character.py            Character sprites, state machine, movement
@@ -27,7 +30,7 @@ claude_office.py          Entry point (argparse, curses.wrapper)
 ### Data flow
 
 ```
-JSONL files --> TranscriptWatcher.poll() --> events list
+JSONL files --> Watcher.poll() --> events list
                                                |
                                                v
                                      App._handle_event()
@@ -81,15 +84,15 @@ EXITING (subagent done) --> removed from scene
 | Event | Method | Effect |
 |-------|--------|--------|
 | `tool_start` | `Character.on_tool_start(name)` | Walk to desk, show tool bubble. If SPAWNING, queues tool. |
-| `tool_end` | `Character.on_tool_end()` | Go get coffee (THINKING). |
+| `tool_end` | `Character.on_tool_end()` | Go get coffee (THINKING). Speech bubble persists until natural expiry (5s). |
 | `turn_end` | `Character.on_turn_end()` | Return to lounge immediately. |
 | `AskUserQuestion` | `Character.on_waiting(name)` | Enter WAITING state with red flashing "HELP!" bubble. |
 | `spawn_subagent` | `App._spawn_agent()` | New character in SPAWNING state. |
 | subagent `turn_end` | `Character.on_exit()` | Enter EXITING state, removed after 1.5s. |
 
-## Transcript Watcher
+## Watchers
 
-`office/transcript_watcher.py` bridges Claude Code's JSONL files to visualization events.
+`office/watchers/` contains pluggable event sources. Each watcher implements `BaseWatcher` with a `poll()` method returning events and a `SOURCE_NAME` for the title bar. The Claude watcher (`office/watchers/claude.py`) bridges Claude Code's JSONL files to visualization events. Other watchers (`codex.py`, `kiro.py`, `opencode.py`) follow the same interface for their respective CLIs.
 
 ### Session file location
 
@@ -116,7 +119,7 @@ The watcher resolves the working directory to a project folder using three strat
 |------------|---------------|---------------|
 | `"assistant"` with `tool_use` content | `block.name` | `tool_start` with tool name |
 | `"assistant"` with `tool_use` name=`"Task"` | `block.input.subagent_type` | `spawn_subagent` |
-| `"result"` | -- | `tool_end` |
+| `"user"` with `tool_result` content | -- | `tool_end` |
 | `"system"` subtype `"turn_duration"` | -- | `turn_end` |
 
 ### Polling
@@ -134,22 +137,26 @@ Defined in `office/scene.py`. The office is 78x22 characters inside an 80x24 bor
 | Zone | Y range | Contents |
 |------|---------|----------|
 | Title bar | 0-2 | "CLAUDE CODE OFFICE" + clock |
-| Desk area | 3-7 | 4 workstations with chairs |
-| Walkway | 10 | Dashed separator line |
-| Lounge | 12-19 | Coffee machine, sofas, plant, whiteboard |
+| Cubicles | 3-7 | 4 workstations with shared walls, monitors, desks, chairs |
+| Walkway | 9 | Dotted separator (`·   ·   ·`) |
+| Café | 11-17 | Coffee break room with counter (left side) |
+| Lounge | 11-18 | Open area with sofas, coffee table, whiteboard |
 | Status bar | 22 | Agent count, active count, tools |
 
 ### Key coordinates
 
 | Object | Position |
 |--------|----------|
-| Desk 0 chair | (12, 6) |
-| Desk 1 chair | (29, 6) |
-| Desk 2 chair | (46, 6) |
-| Desk 3 chair | (63, 6) |
-| Coffee spot | (9, 13) |
-| Lounge walk area | x: 10-50, y: 12-15 |
-| Whiteboard | right edge, y: 12-18 |
+| Cubicle 0 | x=5, 15 wide, chair at (12, 6) |
+| Cubicle 1 | x=21, 15 wide, chair at (28, 6) |
+| Cubicle 2 | x=37, 15 wide, chair at (44, 6) |
+| Cubicle 3 | x=53, 15 wide, chair at (60, 6) |
+| Coffee spot | (7, 14) inside café |
+| Lounge walk area | x: 16-52, y: 11-16 |
+| Sofa 1 | x=18, y=16-18 |
+| Sofa 2 | x=32, y=16-18 |
+| Coffee table | x=27, y=17 (between sofas) |
+| Whiteboard | x=61, y=11-18 (flush with right wall) |
 
 ## Sprites
 
@@ -196,12 +203,12 @@ waiting_1: waiting_2: coffee_1: coffee_2: spawning: exiting:
 | Desk timeout | 10.0s | `character.py:266` |
 | Wait timeout | 15.0s | `character.py:290` |
 | Whiteboard expiry | 15.0s | `scene.py:31` |
-| File scan interval | 2.0s | `transcript_watcher.py:14` |
+| File scan interval | 2.0s | `watchers/claude.py:19` |
 | Speech bubble | 50 frames (5s) | `speech_bubble.py:75` |
 
 ## Demo Mode
 
-`demo/demo_mode.py` generates random events at 0.8-3.0s intervals without needing an active Claude Code session. It simulates tool usage, subagent spawning, and turn completions. Max 3 concurrent subagents.
+`office/watchers/demo.py` generates random events at 0.8-3.0s intervals without needing an active Claude Code session. It simulates tool usage, subagent spawning, and turn completions. Max 3 concurrent subagents.
 
 ## Adding New Features
 

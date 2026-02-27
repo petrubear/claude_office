@@ -165,7 +165,9 @@ class Character:
     def on_tool_end(self):
         prev_tool = self.current_tool
         self.current_tool = None
-        self.speech_bubble = None
+        # Don't clear speech_bubble here -- let it expire naturally so the
+        # user can see what tool was just used, even for fast tools where
+        # tool_start and tool_end arrive in the same poll() batch.
         if self.state == AgentState.WORKING:
             self._go_get_coffee()
         elif self.state == AgentState.WALKING:

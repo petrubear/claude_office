@@ -7,11 +7,15 @@ from office.watchers import BaseWatcher
 TOOL_NAME_MAP = {
     "read": "Read",
     "edit": "Edit",
+    "write": "Write",
     "bash": "Bash",
     "glob": "Glob",
+    "grep": "Grep",
     "list": "Glob",
     "webfetch": "WebFetch",
     "todowrite": "Write",
+    "context7_resolve-library-id": "Docs",
+    "context7_query-docs": "Docs",
     "invalid": "unknown",
 }
 
@@ -47,6 +51,10 @@ class OpenCodeWatcher(BaseWatcher):
         # Subagent sessions: child_session_id -> agent_id
         self._sub_sessions = {}
         self._sub_counter = 0
+        # Deferred tool_end events for single-record tool completions.
+        # When OpenCode writes only a completed record (no prior pending),
+        # we emit tool_start immediately and queue tool_end for next poll.
+        self._deferred_ends = []  # list of {"event": "tool_end", ...}
 
     def _get_connection(self):
         import sqlite3
@@ -98,17 +106,23 @@ class OpenCodeWatcher(BaseWatcher):
             return []
 
         events = []
+
+        # Flush any deferred tool_end events from the previous poll
+        if self._deferred_ends:
+            events.extend(self._deferred_ends)
+            self._deferred_ends = []
+
         try:
             session_id = self._find_latest_session(conn)
             if not session_id:
                 conn.close()
-                return []
+                return events
 
             if not self._initialized:
                 self._skip_to_end(conn, session_id)
                 self._initialized = True
                 conn.close()
-                return []
+                return events
 
             # Poll main session + all tracked subagent sessions
             sessions_to_poll = [(session_id, "main")]
@@ -163,8 +177,19 @@ class OpenCodeWatcher(BaseWatcher):
                     return [{"event": "tool_start", "agent_id": agent_id,
                              "tool": tool}]
             elif status in ("completed", "error"):
-                self._active_calls.pop(call_id, None)
-                return [{"event": "tool_end", "agent_id": agent_id}]
+                if call_id in self._active_calls:
+                    # We already emitted tool_start for this call
+                    self._active_calls.pop(call_id, None)
+                    return [{"event": "tool_end", "agent_id": agent_id}]
+                else:
+                    # OpenCode often writes a single record with
+                    # status=completed (no prior pending/running).
+                    # Emit tool_start now and defer tool_end to next
+                    # poll so the animation has time to play.
+                    self._deferred_ends.append(
+                        {"event": "tool_end", "agent_id": agent_id})
+                    return [{"event": "tool_start", "agent_id": agent_id,
+                             "tool": tool}]
 
         elif part_type == "step-finish":
             reason = data.get("reason", "")

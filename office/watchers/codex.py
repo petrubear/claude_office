@@ -16,6 +16,7 @@ class CodexWatcher(BaseWatcher):
         self.current_file = None
         self._last_scan = 0
         self._scan_interval = 2.0
+        self._saw_tool_activity = False
 
     def _find_latest_rollout(self):
         """Find the most recently modified rollout-*.jsonl file."""
@@ -69,25 +70,39 @@ class CodexWatcher(BaseWatcher):
         if rec_type == "response_item":
             item_type = payload.get("type", "")
             if item_type == "function_call":
+                self._saw_tool_activity = True
                 tool_name = payload.get("name", "unknown")
                 # Map Codex tool names to friendly display names
                 tool_map = {
+                    "shell_command": "Bash",
+                    "shell": "Bash",
                     "exec_command": "Bash",
                     "write_file": "Write",
                     "read_file": "Read",
-                    "list_directory": "Glob",
-                    "search_files": "Grep",
+                    "update_plan": "Write",
                 }
                 display = tool_map.get(tool_name, tool_name)
                 return {"event": "tool_start", "agent_id": "main",
                         "tool": display}
             elif item_type == "function_call_output":
                 return {"event": "tool_end", "agent_id": "main"}
+            elif item_type == "message" and payload.get("role") == "assistant":
+                # An assistant message after tool activity signals the turn
+                # is complete (final response after tool calls).
+                if self._saw_tool_activity:
+                    self._saw_tool_activity = False
+                    return {"event": "turn_end", "agent_id": "main"}
 
         elif rec_type == "event_msg":
             detail_type = payload.get("type", "")
             if detail_type == "task_complete":
+                # Keep as fallback in case future Codex versions add this
                 return {"event": "turn_end", "agent_id": "main"}
+            elif detail_type == "agent_message":
+                # agent_message after tool activity signals turn end
+                if self._saw_tool_activity:
+                    self._saw_tool_activity = False
+                    return {"event": "turn_end", "agent_id": "main"}
 
         return None
 
