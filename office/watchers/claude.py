@@ -82,20 +82,14 @@ class ClaudeWatcher(BaseWatcher):
                                         f"{self.session_id}.jsonl")
             if os.path.exists(session_file):
                 self._tracked_files.append(("main", session_file))
-                session_base = os.path.join(self.project_dir, self.session_id)
-                for sf in self._find_subagent_files(session_base):
-                    agent_id = os.path.basename(sf).replace(".jsonl", "")
-                    self._tracked_files.append((agent_id, sf))
+                # Note: subagent JSONL files are NOT tracked here.
+                # Subagents are created via spawn_subagent events from the
+                # main session, and given default tools in App._handle_event.
+                # Tracking their files would create duplicate characters.
         else:
             session_file = self._find_latest_session()
             if session_file:
                 self._tracked_files.append(("main", session_file))
-                session_id = os.path.basename(session_file).replace(
-                    ".jsonl", "")
-                session_base = os.path.join(self.project_dir, session_id)
-                for sf in self._find_subagent_files(session_base):
-                    agent_id = os.path.basename(sf).replace(".jsonl", "")
-                    self._tracked_files.append((agent_id, sf))
 
     def poll(self):
         self._scan_files()

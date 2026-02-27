@@ -60,12 +60,15 @@ class OpenCodeWatcher(BaseWatcher):
         import sqlite3
         if not os.path.exists(self.db_path):
             return None
-        conn = sqlite3.connect(
-            f"file:{self.db_path}?mode=ro", uri=True,
-            check_same_thread=False,
-        )
-        conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            conn = sqlite3.connect(
+                f"file:{self.db_path}?mode=ro", uri=True,
+                check_same_thread=False,
+            )
+            conn.row_factory = sqlite3.Row
+            return conn
+        except sqlite3.Error:
+            return None
 
     def _find_latest_session(self, conn):
         """Find the most recently updated session ID."""
@@ -115,13 +118,11 @@ class OpenCodeWatcher(BaseWatcher):
         try:
             session_id = self._find_latest_session(conn)
             if not session_id:
-                conn.close()
                 return events
 
             if not self._initialized:
                 self._skip_to_end(conn, session_id)
                 self._initialized = True
-                conn.close()
                 return events
 
             # Poll main session + all tracked subagent sessions
@@ -147,13 +148,10 @@ class OpenCodeWatcher(BaseWatcher):
                     parsed = self._parse_part(data, agent_id)
                     if parsed:
                         events.extend(parsed)
-
-            conn.close()
         except Exception:
-            try:
-                conn.close()
-            except Exception:
-                pass
+            pass
+        finally:
+            conn.close()
         return events
 
     def _parse_part(self, data, agent_id):
@@ -196,7 +194,7 @@ class OpenCodeWatcher(BaseWatcher):
             if reason == "stop":
                 return [{"event": "turn_end", "agent_id": agent_id}]
 
-        return None
+        return []
 
     def _handle_task_tool(self, data, call_id, agent_id, status):
         """Handle task tool calls -- spawn / finish subagents."""
@@ -247,7 +245,7 @@ class OpenCodeWatcher(BaseWatcher):
             # Also signal tool_end on the parent
             events.append({"event": "tool_end", "agent_id": agent_id})
 
-        return events if events else None
+        return events
 
     def get_status(self):
         if os.path.exists(self.db_path):

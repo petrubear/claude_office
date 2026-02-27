@@ -2,19 +2,25 @@ import curses
 from office.colors import COLOR_SPEECH
 
 TOOL_ICONS = {
-    "Read": "[Read]",
-    "Edit": "[Edit]",
-    "Write": "[Write]",
-    "Bash": "[$ Bash]",
-    "Grep": "[Grep]",
-    "Glob": "[Glob]",
-    "Task": "[Task]",
-    "WebFetch": "[Web]",
-    "WebSearch": "[Search]",
-    "NotebookEdit": "[Notebook]",
-    "AskUserQuestion": "[Ask?]",
-    "EnterPlanMode": "[Plan]",
-    "ExitPlanMode": "[Plan OK]",
+    "Read": "Read",
+    "Edit": "Edit",
+    "Write": "Write",
+    "Bash": "$ Bash",
+    "Grep": "Grep",
+    "Glob": "Glob",
+    "Task": "Task",
+    "WebFetch": "Web",
+    "WebSearch": "Search",
+    "NotebookEdit": "Notebook",
+    "AskUserQuestion": "Ask?",
+    "EnterPlanMode": "Plan",
+    "ExitPlanMode": "Plan OK",
+    "Docs": "Docs",
+    "TodoWrite": "Todo",
+    "SendMessage": "Msg",
+    "TaskCreate": "Task+",
+    "TaskUpdate": "Task~",
+    "unknown": "...",
 }
 
 # Tools that require user permission / approval
@@ -26,7 +32,7 @@ class SpeechBubble:
         self.text = text
         self.remaining = duration_frames
         self.width = len(text) + 4
-        self.persistent = persistent  # doesn't expire (for waiting state)
+        self.persistent = persistent
 
     def render(self, win, x, y, color_pair=None):
         if color_pair is None:
@@ -35,9 +41,14 @@ class SpeechBubble:
         bx = x - self.width // 2
         by = y - 3
 
+        if by < 0:
+            by = y + 4  # Show below character if too high
+        if bx < 1:
+            bx = 1
+        if bx + self.width >= max_w - 1:
+            bx = max_w - self.width - 1
+
         if by < 0 or bx < 0:
-            return
-        if bx + self.width >= max_w:
             return
 
         top = "\u250c" + "\u2500" * (self.width - 2) + "\u2510"
@@ -67,7 +78,7 @@ class SpeechBubble:
 
     @staticmethod
     def for_tool(tool_name):
-        text = TOOL_ICONS.get(tool_name, f"[{tool_name}]")
+        text = TOOL_ICONS.get(tool_name, tool_name[:12])
         return SpeechBubble(text, duration_frames=50)
 
     @staticmethod

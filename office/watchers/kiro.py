@@ -45,7 +45,6 @@ class KiroWatcher(BaseWatcher):
         self._initialized = False
         self._last_poll = 0
         self._poll_interval = 0.5
-        # Track which conversation we're watching and how far we've read
         self._conv_key = None
         self._conv_id = None
         self._history_len = 0
@@ -55,12 +54,15 @@ class KiroWatcher(BaseWatcher):
         import sqlite3
         if not os.path.exists(self.db_path):
             return None
-        conn = sqlite3.connect(
-            f"file:{self.db_path}?mode=ro", uri=True,
-            check_same_thread=False,
-        )
-        conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            conn = sqlite3.connect(
+                f"file:{self.db_path}?mode=ro", uri=True,
+                check_same_thread=False,
+            )
+            conn.row_factory = sqlite3.Row
+            return conn
+        except sqlite3.Error:
+            return None
 
     def poll(self):
         now = time.monotonic()
@@ -81,7 +83,6 @@ class KiroWatcher(BaseWatcher):
             )
             row = cur.fetchone()
             if not row:
-                conn.close()
                 return []
 
             key = row["key"]
@@ -97,12 +98,10 @@ class KiroWatcher(BaseWatcher):
                 self._history_len = len(history)
                 self._last_updated = updated_at
                 self._initialized = True
-                conn.close()
                 return []
 
             # No update since last poll
             if updated_at == self._last_updated:
-                conn.close()
                 return []
 
             self._last_updated = updated_at
@@ -113,13 +112,10 @@ class KiroWatcher(BaseWatcher):
 
             for entry in new_entries:
                 events.extend(self._parse_entry(entry))
-
-            conn.close()
         except Exception:
-            try:
-                conn.close()
-            except Exception:
-                pass
+            pass
+        finally:
+            conn.close()
         return events
 
     def _parse_entry(self, entry):
@@ -129,15 +125,11 @@ class KiroWatcher(BaseWatcher):
         user_content = user.get("content", {})
         assistant = entry.get("assistant", {})
 
-        # --- Handle ToolUseResults arriving (user side of entry) ---
-        # This means results from the previous entry's tool calls arrived.
+        # Handle ToolUseResults arriving (user side of entry)
         if isinstance(user_content, dict) and "ToolUseResults" in user_content:
-            # Tool results arrived — emit tool_end for the main agent.
-            # Subagent characters exit naturally via idle timeout in
-            # Character (idle_timer > 20s), so we don't emit events for them.
             events.append({"event": "tool_end", "agent_id": "main"})
 
-        # --- Handle assistant response ---
+        # Handle assistant response
         if "ToolUse" in assistant:
             tu = assistant["ToolUse"]
             tool_uses = tu.get("tool_uses", [])
@@ -149,8 +141,6 @@ class KiroWatcher(BaseWatcher):
                 if name == "use_subagent" and command == "InvokeSubagents":
                     subagents = (args.get("content", {})
                                  .get("subagents", []))
-                    # Emit spawn_subagent for each sub; App assigns IDs.
-                    # Subagent characters exit via idle timeout in Character.
                     for sub in subagents:
                         events.append({
                             "event": "spawn_subagent",
@@ -159,7 +149,6 @@ class KiroWatcher(BaseWatcher):
                             "description": sub.get("query", "subtask")[:40],
                             "tool": "Task",
                         })
-
                 elif name == "use_subagent":
                     events.append({
                         "event": "tool_start",
@@ -174,7 +163,6 @@ class KiroWatcher(BaseWatcher):
                         "tool": display,
                     })
 
-            # Emit tool_end for the main agent's tool calls
             events.append({"event": "tool_end", "agent_id": "main"})
 
         elif "Response" in assistant:

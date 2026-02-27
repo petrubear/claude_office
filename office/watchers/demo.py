@@ -27,7 +27,7 @@ class DemoWatcher(BaseWatcher):
         events = []
         r = random.random()
 
-        if r < 0.35:
+        if r < 0.30:
             # Main agent uses a tool
             tool = random.choice(DEMO_TOOLS)
             if tool == "Task" and self.sub_count < self.max_subs:
@@ -41,26 +41,26 @@ class DemoWatcher(BaseWatcher):
                     "description": f"subtask-{self.sub_count}",
                 })
             else:
+                tool = random.choice([t for t in DEMO_TOOLS if t != "Task"])
                 events.append({
                     "event": "tool_start",
                     "agent_id": "main",
-                    "tool": random.choice([t for t in DEMO_TOOLS
-                                           if t != "Task"]),
+                    "tool": tool,
                 })
-                self.active_tools["main"] = True
+                self.active_tools["main"] = tool
 
-        elif r < 0.55 and self.sub_alive:
+        elif r < 0.48 and self.sub_alive:
             # A subagent uses a tool
             sub_id = random.choice(list(self.sub_alive))
+            tool = random.choice([t for t in DEMO_TOOLS if t != "Task"])
             events.append({
                 "event": "tool_start",
                 "agent_id": sub_id,
-                "tool": random.choice([t for t in DEMO_TOOLS
-                                       if t != "Task"]),
+                "tool": tool,
             })
-            self.active_tools[sub_id] = True
+            self.active_tools[sub_id] = tool
 
-        elif r < 0.70 and self.active_tools:
+        elif r < 0.62 and self.active_tools:
             # A tool finishes
             agent_id = random.choice(list(self.active_tools.keys()))
             events.append({
@@ -69,7 +69,7 @@ class DemoWatcher(BaseWatcher):
             })
             del self.active_tools[agent_id]
 
-        elif r < 0.80 and self.sub_alive and len(self.sub_alive) > 1:
+        elif r < 0.72 and self.sub_alive and len(self.sub_alive) > 1:
             # A subagent finishes
             sub_id = random.choice(list(self.sub_alive))
             events.append({
@@ -78,6 +78,17 @@ class DemoWatcher(BaseWatcher):
             })
             self.sub_alive.discard(sub_id)
             self.active_tools.pop(sub_id, None)
+
+        elif r < 0.78:
+            # Agent needs help (waiting for user)
+            agent_id = "main"
+            if self.sub_alive and random.random() < 0.3:
+                agent_id = random.choice(list(self.sub_alive))
+            events.append({
+                "event": "waiting",
+                "agent_id": agent_id,
+                "tool": random.choice(["Edit", "Bash", "permission"]),
+            })
 
         elif r < 0.90:
             # Main agent idle moment
