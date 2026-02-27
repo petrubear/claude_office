@@ -48,13 +48,15 @@ class OpenCodeWatcher(BaseWatcher):
         self._active_calls = {}  # callID -> agent_id
         # Per-session high-water-mark for part rowids
         self._row_ids = {}  # session_id -> last_rowid
-        # Subagent sessions: child_session_id -> agent_id
-        self._sub_sessions = {}
-        self._sub_counter = 0
         # Deferred tool_end events for single-record tool completions.
         # When OpenCode writes only a completed record (no prior pending),
         # we emit tool_start immediately and queue tool_end for next poll.
         self._deferred_ends = []  # list of {"event": "tool_end", ...}
+        # Note: subagent child sessions are NOT tracked here.
+        # Subagents are created via spawn_subagent events and given
+        # default tools in App._handle_event. Tracking child sessions
+        # would create duplicate characters (watcher and app use
+        # separate counters for sub-N IDs).
 
     def _get_connection(self):
         import sqlite3
@@ -125,13 +127,9 @@ class OpenCodeWatcher(BaseWatcher):
                 self._initialized = True
                 return events
 
-            # Poll main session + all tracked subagent sessions
-            sessions_to_poll = [(session_id, "main")]
-            for sub_sid, agent_id in list(self._sub_sessions.items()):
-                sessions_to_poll.append((sub_sid, agent_id))
-
+            # Poll main session only (subagents handled via spawn events)
             cur = conn.cursor()
-            for sid, agent_id in sessions_to_poll:
+            for sid, agent_id in [(session_id, "main")]:
                 last_row = self._row_ids.get(sid, 0)
                 cur.execute(
                     "SELECT rowid, data FROM part "
@@ -197,7 +195,13 @@ class OpenCodeWatcher(BaseWatcher):
         return []
 
     def _handle_task_tool(self, data, call_id, agent_id, status):
-        """Handle task tool calls -- spawn / finish subagents."""
+        """Handle task tool calls -- spawn subagents.
+
+        Subagent child sessions are not tracked directly to avoid
+        duplicate characters (the App creates characters via
+        spawn_subagent events with its own ID counter).  Subagent
+        characters exit naturally via the idle timeout in Character.
+        """
         state = data.get("state") or {}
         events = []
 
@@ -208,18 +212,6 @@ class OpenCodeWatcher(BaseWatcher):
                 sub_type = inp.get("subagent_type", "agent")
                 desc = inp.get("description", "subtask")
 
-                # Register the child session if available
-                meta = state.get("metadata") or {}
-                child_sid = meta.get("sessionId")
-
-                self._sub_counter += 1
-                sub_agent_id = f"sub-{self._sub_counter}"
-
-                if child_sid:
-                    self._sub_sessions[child_sid] = sub_agent_id
-                    # Start tracking from the beginning of the child session
-                    self._row_ids.setdefault(child_sid, 0)
-
                 events.append({
                     "event": "spawn_subagent",
                     "agent_id": agent_id,
@@ -229,20 +221,7 @@ class OpenCodeWatcher(BaseWatcher):
 
         elif status in ("completed", "error"):
             self._active_calls.pop(call_id, None)
-
-            # Find which subagent this task maps to via child session
-            meta = state.get("metadata") or {}
-            child_sid = meta.get("sessionId")
-            sub_agent_id = None
-            if child_sid:
-                sub_agent_id = self._sub_sessions.pop(child_sid, None)
-
-            if sub_agent_id:
-                events.append({
-                    "event": "turn_end",
-                    "agent_id": sub_agent_id,
-                })
-            # Also signal tool_end on the parent
+            # Signal tool_end on the parent
             events.append({"event": "tool_end", "agent_id": agent_id})
 
         return events
@@ -250,8 +229,6 @@ class OpenCodeWatcher(BaseWatcher):
     def get_status(self):
         if os.path.exists(self.db_path):
             if self._session_id:
-                subs = len(self._sub_sessions)
-                extra = f" +{subs} sub" if subs else ""
-                return f"OpenCode: {self._session_id[:12]}...{extra}"
+                return f"OpenCode: {self._session_id[:12]}..."
             return "OpenCode: scanning..."
         return "OpenCode: DB not found"
