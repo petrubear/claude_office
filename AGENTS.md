@@ -84,6 +84,7 @@ EXITING (subagent done) --> removed from scene
 | Event | Method | Effect |
 |-------|--------|--------|
 | `tool_start` | `Character.on_tool_start(name)` | Walk to desk, show tool bubble. If SPAWNING, queues tool. |
+| `tool_start` (Thinking) | `Character.on_tool_start("Thinking")` | Walk to desk, show "thinking.." bubble. Emitted when agent generates text without tools. |
 | `tool_end` | `Character.on_tool_end()` | Go get coffee (THINKING). Speech bubble persists until natural expiry (5s). |
 | `turn_end` | `Character.on_turn_end()` | Return to lounge immediately. |
 | `AskUserQuestion` | `Character.on_waiting(name)` | Enter WAITING state with red flashing "HELP!" bubble. |
@@ -119,6 +120,7 @@ The watcher resolves the working directory to a project folder using three strat
 |------------|---------------|---------------|
 | `"assistant"` with `tool_use` content | `block.name` | `tool_start` with tool name |
 | `"assistant"` with `tool_use` name=`"Task"` | `block.input.subagent_type` | `spawn_subagent` |
+| `"assistant"` with text content only (no tools) | -- | `tool_start` with `"Thinking"` |
 | `"user"` with `tool_result` content | -- | `tool_end` |
 | `"system"` subtype `"turn_duration"` | -- | `turn_end` |
 

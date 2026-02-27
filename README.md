@@ -81,7 +81,7 @@ Characters will react in real time as Claude reads files, edits code, runs comma
   - Green: general-purpose / code agents
   - Yellow: Plan / test agents
 - **Cubicles** -- 4 workstations with monitors, desk surfaces, and chairs
-- **Speech bubbles** show the active tool: `[Read]`, `[Edit]`, `[$ Bash]`, `[Grep]`, `[Glob]`, `[Task]`, etc.
+- **Speech bubbles** show the active tool: `[Read]`, `[Edit]`, `[$ Bash]`, `[Grep]`, `[Glob]`, `[Task]`, `[thinking..]`, etc.
 - **Whiteboard** (right wall) -- tracks recently used tools
 - **Café** (left side) -- coffee break room with counter where agents go to think
 - **Sofas** (center) -- rounded lounging area with cushions and a coffee table
@@ -91,11 +91,12 @@ Characters will react in real time as Claude reads files, edits code, runs comma
 
 Claude Office tails the JSONL transcript files that Claude Code writes to `~/.claude/projects/`. It detects tool usage, subagent spawns, and turn completions, then maps those events to character animations:
 
-1. Agent uses a tool -- character walks to their desk and starts typing
-2. Tool finishes -- character pauses briefly (thinking)
-3. Turn ends -- character walks back to the lounge
-4. Subagent spawns -- new character appears
-5. Subagent finishes -- character fades out
+1. Agent generates text -- character walks to their desk and "thinks"
+2. Agent uses a tool -- character starts typing, speech bubble shows tool name
+3. Tool finishes -- character takes a coffee break
+4. Turn ends -- character walks back to the lounge
+5. Subagent spawns -- new character appears
+6. Subagent finishes -- character fades out
 
 ## Project structure
 
