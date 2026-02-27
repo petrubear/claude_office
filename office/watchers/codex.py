@@ -64,29 +64,30 @@ class CodexWatcher(BaseWatcher):
 
     def _parse_record(self, record):
         rec_type = record.get("type", "")
+        payload = record.get("payload", {})
 
-        if rec_type == "item.started":
-            item = record.get("item", {})
-            item_type = item.get("type", "")
-            if item_type == "command_execution":
+        if rec_type == "response_item":
+            item_type = payload.get("type", "")
+            if item_type == "function_call":
+                tool_name = payload.get("name", "unknown")
+                # Map Codex tool names to friendly display names
+                tool_map = {
+                    "exec_command": "Bash",
+                    "write_file": "Write",
+                    "read_file": "Read",
+                    "list_directory": "Glob",
+                    "search_files": "Grep",
+                }
+                display = tool_map.get(tool_name, tool_name)
                 return {"event": "tool_start", "agent_id": "main",
-                        "tool": "Bash"}
-            elif item_type == "file_changes":
-                return {"event": "tool_start", "agent_id": "main",
-                        "tool": "Edit"}
-            elif item_type == "mcp_tool_call":
-                tool_name = item.get("name", "mcp-tool")
-                return {"event": "tool_start", "agent_id": "main",
-                        "tool": tool_name}
-            # Generic fallback for other item types
-            return {"event": "tool_start", "agent_id": "main",
-                    "tool": item_type or "unknown"}
+                        "tool": display}
+            elif item_type == "function_call_output":
+                return {"event": "tool_end", "agent_id": "main"}
 
-        elif rec_type == "item.completed":
-            return {"event": "tool_end", "agent_id": "main"}
-
-        elif rec_type == "turn.completed":
-            return {"event": "turn_end", "agent_id": "main"}
+        elif rec_type == "event_msg":
+            detail_type = payload.get("type", "")
+            if detail_type == "task_complete":
+                return {"event": "turn_end", "agent_id": "main"}
 
         return None
 
