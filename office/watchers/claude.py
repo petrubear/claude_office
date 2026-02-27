@@ -134,8 +134,10 @@ class ClaudeWatcher(BaseWatcher):
 
         if rec_type == "assistant":
             content = record.get("message", {}).get("content", [])
+            has_tool = False
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "tool_use":
+                    has_tool = True
                     tool_name = block.get("name", "unknown")
                     if tool_name == "Task":
                         sub_type = (block.get("input", {})
@@ -152,6 +154,19 @@ class ClaudeWatcher(BaseWatcher):
                         "event": "tool_start",
                         "agent_id": agent_id,
                         "tool": tool_name,
+                    }
+            # Assistant is generating text (no tool calls) -- still active
+            if not has_tool:
+                has_text = any(
+                    isinstance(b, dict) and b.get("type") == "text"
+                    and b.get("text", "").strip()
+                    for b in content
+                ) if isinstance(content, list) else bool(content)
+                if has_text:
+                    return {
+                        "event": "tool_start",
+                        "agent_id": agent_id,
+                        "tool": "Thinking",
                     }
 
         elif rec_type == "user":

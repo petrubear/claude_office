@@ -21,6 +21,7 @@ TOOL_ICONS = {
     "TaskCreate": "Task+",
     "TaskUpdate": "Task~",
     "unknown": "...",
+    "Thinking": "thinking..",
 }
 
 # Tools that require user permission / approval

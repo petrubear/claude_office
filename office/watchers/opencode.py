@@ -187,6 +187,18 @@ class OpenCodeWatcher(BaseWatcher):
                     return [{"event": "tool_start", "agent_id": agent_id,
                              "tool": tool}]
 
+        elif part_type == "step-start":
+            # New turn started -- agent is thinking/generating
+            return [{"event": "tool_start", "agent_id": agent_id,
+                     "tool": "Thinking"}]
+
+        elif part_type == "text":
+            # Text output -- agent is actively generating
+            text = data.get("content", "") or data.get("text", "")
+            if text.strip():
+                return [{"event": "tool_start", "agent_id": agent_id,
+                         "tool": "Thinking"}]
+
         elif part_type == "step-finish":
             reason = data.get("reason", "")
             if reason == "stop":
